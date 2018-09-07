@@ -1,0 +1,166 @@
+#+OPTIONS: toc:nil num:nil reveal_slide_number:nil 
+#+REVEAL_ROOT: https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.7.0/
+#+REVEAL_THEME: night
+#+REVEAL_TRANS: linear
+* REST by Analogies
+
+** What is REST?
+#+ATTR_REVEAL: :frag t
+REpresentational State Transfer
+#+ATTR_REVEAL: :frag t
+(not very helpful)
+
+** REST via 2 analogies
+- WWW
+- Grammar
+
+** Caveats
+REST isn't always the best choice
+
+REST is document/data focused, and sometimes you need a different solution (e.g., RPC, TCP socket)
+
+* WWW
+The web started (and still mainly is) as a way to share documents across the internet.
+
+You can download text, images and other random files.
+
+** Getting Data
+
+[[file:img/firefox-get.png]]
+
+** Fetch Dynamic Data
+
+[[file:img/google-url-param.png]]
+
+** Upload Data
+
+[[file:img/upload-form.png]]
+
+** To be Resful is to be Webful
+
+- A URL fetches the data you want
+- Your data can be filtered w/ URL params
+- Uploading data should be like filling out a form
+- All metadata is hidden away from the user's view
+
+*Bonus Points*
+- Your API actually works in a browser
+
+** REST is just a re-embrace of web technologies
+
+The web uses HTTP, *you* use HTTP
+
+#+BEGIN_QUOTE
+Since 1994, the REST architectural style has been used to guide the design and development of the architecture for the modern Web -- Roy Fielding, Author of REST
+#+END_QUOTE
+
+** Clarification
+
+The web supposes some things you don't have to
+
+- HTML data
+- Cookie authentication
+- GET/POST only HTTP methods
+
+There's more room to spread your wings in REST, but the web is a good starting point
+
+* REST as a language grammar
+
+REST (and the web) is bound by the HTTP protocol
+
+HTTP provides a robust enough language that you should never need to hack a solution
+
+** URL: the noun
+The proper term is URI (Uniform Resource Identifier) instead of URL (... Location) because it's not  "where" that's important but the "what".
+
+The URI path should be a noun.
+
+*** URI examples
+*Good*
+https://kinvey.com/appdata/DidYouKnow-V1
+
+#+ATTR_REVEAL: :frag t
+*Bad* https://kinvey.com/appdata/DeleteUser
+
+*** Caveat
+
+Sometimes, a URI can have a verb
+
+This should only happen when no HTTP methods apply and no data is fetched.
+
+=authenticate=, =logout=
+
+** HTTP methods: the verb
+What do you want to *do* to the noun?
+
+- GET
+- POST - Save as new data
+- DELETE
+- PATCH - Update a subset of this data
+- PUT - Replace the existing data with this
+
+** URL params: the adjectives
+When you need to refine (filter) the data you want, you use adjectives to further describe the noun
+
+#+ATTR_REVEAL: :frag t
+https://kinvey.com/PaymentMethods?type=credit&issuer=visa
+
+#+ATTR_REVEAL: :frag t
+Adjectives don't necessarily have to be URL params
+
+#+ATTR_REVEAL: :frag t
+https://kinvey.com/PaymentMethod/some-unique-id
+
+
+** HTTP headers: the adverbs
+Adverbs modify verbs +and adjectives+
+
+#+ATTR_REVEAL: :frag t
+Want to GET payments, but only if your cache is too old? =If-Modified-Since= header
+
+#+ATTR_REVEAL: :frag t
+Need to tell the server what version of the app? =X-App-Version= header
+
+#+ATTR_REVEAL: :frag t
+Tell the client billing is down? =X-Billing-Status= header
+
+*** Response code is the most important adverb
+It tells you whether how the server handled your response
+
+** Nearly all sentences can be converted to a RESTful interface
+
+If your English descriptions don't translate well to Restful interfaces, you may need to switch to another protocol.
+
+Farmers APIs map very well to REST
+
+* The benefits
+
+- No =transactionNotification=, =systemDate=, =billingMode= BS in our responses
+- Responses are immediately available to use and save without any client processing
+- Tools like web browsers, curl & Postman are easily usable
+
+** New hire's API orientation
+
+Us: "We use pure Restful APIs. Here's a list of our endpoints"
+Them: "Cool"
+
+* Other protocols
+** SOA/SOAP
+Document based protocol on top of HTTP.
+
+Cons
+ - Doesn't use HTTP headers for metadata. Implements its own layer
+ - Requires custom tools that understand SOAP protocol
+ - Very verbose payloads makes it hard to manually read data
+ - XML based
+
+Pros
+ - WSDLs are nice
+
+** RPC
+More of a paradigm that focuses around actions than data. Think internet-accessible functions. A specific protocol is XML-RPC
+
+Useful when you want to expose functionality instead of just data like remote desktop, ssh.
+
+** CORBA
+Don't know, don't care

@@ -1,0 +1,32 @@
+#+TITLE: A slice of WASM py
+#+OPTIONS: toc:nil num:nil reveal_slide_number:nil
+#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
+#+REVEAL_EXTRA_CSS: index.css
+
+* Why WASM?
+#+ATTR_REVEAL: :frag t
+ - Fast, memory intense programs written in compiled languages
+ - Reuse code from other platforms
+
+* What is Web Assembly (WASM)
+ - A binary format that defines data and execution
+ - Think of it like a Linux binary (ELF), Windows EXE or JVM class files
+
+** Differences
+ - Integrates with Javascript via module system with explicit import/export functions.
+ - Each wasm file corresponds to a module
+
+** Data types
+Primitive data types: 32-bit and 64-bit (signed) integer and floating point numbers. No other data types (e.g., chars, bytes)
+
+** Memory 
+
+* Virtual machine basics
+
+* Example: +Hello world+ 2 + 2 = 4
+
+* The WASM memory model
+
+* The future of WASM
+
+* A Python-like compiler

@@ -1,0 +1,12 @@
+.reveal pre, .reveal blockquote {
+    white-space: pre-wrap;
+    margin: 20px 0px;
+}
+
+.present {
+    text-align: left;
+}
+
+code {
+    color: chartreuse;
+}

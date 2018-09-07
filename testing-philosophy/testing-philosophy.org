@@ -1,0 +1,115 @@
+#+OPTIONS: toc:nil num:nil reveal_slide_number:nil 
+#+REVEAL_ROOT: https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.7.0/
+#+REVEAL_THEME: night
+#+REVEAL_TRANS: linear
+* Testing Philosophy
+
+** A discussion
+Just like programming, there is no one, true testing paradigm we should all use. Ask questions & provide comments
+
+* The Pyramid
+** Fowler
+#+CAPTION: https://martinfowler.com/bliki/TestPyramid.html
+[[file:img/fowler-pyramid.png]]
+
+
+** Uncle Bob
+
+#+CAPTION: https://codingjourneyman.com/2014/09/24/the-clean-coder-testing-strategies/
+[[file:img/uncle-bob-pyramid.png]]
+
+** The Gist
+Code and its uses is complicated so test a lot in many different ways
+
+
+* The layers I'll refer to
+1. Unit tests
+2. UI/Component tests
+3. Integration tests
+4. Manual tests
+
+** Manual tests
+Simplest & least scalable.
+
+Anything you do by directly interacting with the app/service is a manual test
+
+** Integration test
+The automated version of manual tests.
+
+Still black box testing, but should be done by a computer
+
+** UI/Component tests
+Testing at the "feature" level where external dependencies are faked/mocked.
+
+A screen on a mobile or and an endpoint for backend services
+
+** Unit tests
+Test at the class/function level
+
+Do your abstractions (which are what classes and functions are there for) do what they claim to do?
+
+
+* Benefits of testing
+From common (obvious) to rarer justifications
+
+** Cheaper fixes
+   [[file:img/bug-fix-cost.gif]]
+
+** Confidence
+   If your tests pass, your code is good.
+
+** Regression tests
+   Don't let those ellusive bugs escape more than once
+
+** API design
+   Designing with testing in mind means designing for isolation
+
+
+* Warning: My Opinion
+
+
+* The goal of testing
+#+ATTR_REVEAL: :frag t
+Write code better, faster & cheaper
+
+** Pick Two
+[[file:img/good-fast-cheap.png]]
+
+** (Any) Code is a liability
+The more code you have, the more bugs you'll have. This includes tests.
+
+#+ATTR_REVEAL: :frag t
+More tests isn't always better
+
+
+* Testing strategy for developers
+Specifically, at Farmers
+
+** Unit tests for library writers
+If your code is meant to be called by other code, write unit tests
+
+** UI/Component tests for app/UI writers
+If your code is what the user sees and uses, write UI/component tests
+
+For example, endpoint testing for backend services
+
+** Integration tests for QA [engineers]
+At the app/flow level, extraneous factors play a large role. People responsible for the whole system (or complete functionality) should write integration tests.
+
+** Manual testing is for everyone
+QA should use and abuse new features
+
+Dev should test any scenario they think is relevant. If it's important, convert to an automated test!
+
+
+* At Farmers, what tests should we write?
+
+#+ATTR_REVEAL: :frag t
+All of them
+
+** The priority
+
+1. UI tests - we ultimately want to make sure the user can do right thing
+2. Unit tests - we write libraries. Any code that isn't directly responsible for interacting with the UI is business logic and should have unit tests
+3. Integration tests - Since QA cannot write them alone, we should help
+4. Manual tests

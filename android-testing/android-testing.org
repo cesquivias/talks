@@ -1,0 +1,111 @@
+#+OPTIONS: toc:nil num:nil reveal_slide_number:nil reveal_global_footer:t
+#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
+#+REVEAL_THEME: night
+#+REVEAL_TRANS: linear
+* UI testing on Android
+- About 70 UI tests (+ unit tests)
+- Run on Jenkins
+
+* Background
+** Apps on Android
+- Apps (UI) is made of of Activities
+- Only one app instance
+
+#+BEGIN_SRC dot :file img/activity.png
+digraph Activity {
+    Android -> Application [style=dotted arrowtail=none];
+    Activity -> Application
+    Android -> Activity
+    Activity -> Layout
+}
+#+END_SRC
+
+Therefore we test on an activity-by-activity basis[fn:1]
+
+** Limitations
+- You interact with the system through the activity instance making it hard to mock/fake
+
+** Callbacks galore
+
+#+ATTR_HTML: :style max-height:-webkit-fill-available
+[[file:img/lifecycle.png]]
+
+** UI testing is a pain
+Only have UI logic in activities. All business logic should move to vanilla Java classes
+
+Some orgs move *all* code outside of activities to make them more testable, but we don't
+
+** UI testing with Espresso
+- Google has constantly tried to improve UI testing for Android
+- They finally released something manageable with Espresso
+
+#+ATTR_HTML: :height 40% :width 40%
+[[https://developer.android.com/images/training/testing/espresso.png]]
+
+** Fluent API
+
+#+BEGIN_SRC java
+  @Test
+  public void greeterSaysHello() {
+      onView(withId(R.id.name_field)).perform(typeText("Steve"));
+      onView(withId(R.id.greet_button)).perform(click());
+      onView(withText("Hello Steve!")).check(matches(isDisplayed()));
+  }
+#+END_SRC
+
+* History
+Example: IdCardDetailActivityTest
+
+** The old tests
+f1487b07299a5b5d22296f7bfa61df8fe67637b9
+
+Purged
+f726fbb
+
+** Migrate to latest UI testing framework
+6ac3bb8b401fec66e7f7be8cdebe2a7652f19bd6
+
+Add *something*
+
+** Fix inevitable errors
+See how many =Fix UI tests= commits there are
+
+They'll keep coming
+
+** Helper functions around existing infrastructure
+e5af23161bb7866df7d5edaa565cab01e4e8c0f1 SelectPaymentMethodActivityTest
+
+See our =LoginRule= class
+
+** Move towards better architecture
+3b87dc3c228c6774f01522f37dda6a88b7de2f55 - Mock Kinvey
+5ce51d7fbb1d72629f9fc5308002753deeaec5ea - Mock IdCardDataSource
+
+Eliminate =LoginRule= and global data
+
+Use mock objects
+
+** Add more tests around use cases
+44bde606983d0c077ae5b44127bd7bf4ef9bde54
+
+Pattern is mostly set. Flush out tests
+
+** Towards good architecture
+838e7ba043d0298dc53b505579050ab9e20e3f30
+
+   Move logic out of activities into business layer and use unit tests
+
+** Future improvements
+- Abstract out tedious mock creation into =Rule= subclass
+
+* Takeaways
+- Get rid of the old tests. They hurt more than helped
+- Write a simple UI test to get familiar with the framework and the quirks of our system
+- Write helper functions for tedious work
+- Move towards dependency injection
+  + Either have your data/network objects in a central location
+  + Or use true dependency injection
+
+* Footnotes
+
+[fn:1] Fragments are another common component, but our app rarely uses them so we'll focus on activities

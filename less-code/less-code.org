@@ -1,0 +1,563 @@
+#+TITLE: How to improve your code by having less of it
+#+OPTIONS: toc:nil num:nil reveal_slide_number:nil
+#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
+#+REVEAL_EXTRA_CSS: xml.css
+* Benefits of less code
+** Fewer bugs
+
+** Builds and the app are faster
+
+** I don't want to look at it
+
+It makes me a happier, more productive developer
+#+ATTR_REVEAL: :frag t
+The other values fall from this
+
+* Android results
+
+We've eliminated >50% of our code while keeping all the functionality and adding more!
+
+** 
+#+OPTIONS: ^:nil
+[[file:android-loc.png]]
+
+** Getting rid of files
+
+* Less code does not mean
+- Multiple statements per line
+- Code golf
+- Lines that go 200 characters over the column limit
+
+Always right properly styled code
+
+* Examples
+
+* Death to DataManagers (87 lines)
+
+#+begin_src java
+  package com.farmers.ifarmers.service.datamanager;
+
+  import ...
+
+  /**
+   ,* Data manager for Enroll in Automatic payments.
+   ,*
+   ,* @param <T> the type of request model
+   ,*/
+  public class EnrollAutopayDataManager<T extends GenericJson> implements WebserviceCallback {
+      private NfarmersKinveyClient nfarmersKinveyClient; // NfarmersKinveyClient object
+      private T requestObject; // the request object
+      private IDataManagerCallback iDataManagerCallback; // the data call back
+      private String methodName; // the method name of service
+      private String collectionName; // the collection name for service
+      private Context context; // the application environment
+      private Class<T> className; // the class name of request model
+      private String tId; // transaction ID
+
+      /**
+       ,* The constructor
+       ,*
+       ,* @param context              the application environment
+       ,* @param methodName           the method name of service
+       ,* @param collectionName       the collection name for service
+       ,* @param requestObject        the request object
+       ,* @param className            the class name of request model
+       ,* @param iDataManagerCallback the data call back
+       ,*/
+      public EnrollAutopayDataManager(Context context, String methodName, String collectionName, T requestObject, Class<T> className, IDataManagerCallback iDataManagerCallback) {
+          AppLog.verbose(LoggerConstants.TAG_ENROLL_AUTOPAY, LoggerConstants.CONSTRUCTOR_CALLED);
+          this.context = context;
+          this.methodName = methodName;
+          AppLog.debug(LoggerConstants.TAG_ENROLL_AUTOPAY, LoggerConstants.METHOD_NAME + methodName);
+          this.collectionName = collectionName;
+          AppLog.debug(LoggerConstants.TAG_ENROLL_AUTOPAY, LoggerConstants.COLLECTION_NAME + collectionName);
+          this.requestObject = requestObject;
+          AppLog.debug(LoggerConstants.TAG_ENROLL_AUTOPAY, LoggerConstants.REQUEST_PARAMS + requestObject);
+          this.iDataManagerCallback = iDataManagerCallback;
+          this.className = className;
+          nfarmersKinveyClient = new NfarmersKinveyClient(NFarmersApplication.getContext(), KinveyConfigManager.getInstance().getKinveyConfig().getAppId(), KinveyConfigManager.getInstance().getKinveyConfig().getAppSecret(), KinveyConfigManager.getInstance().getKinveyConfig().getBaseUrl()/*context.getString(R.string.kinvey_base_url)*/, this);
+      }
+
+      @Override
+      public void onFailed(Throwable error, String methodName) {
+          AppLog.verbose(LoggerConstants.TAG_ENROLL_AUTOPAY, LoggerConstants.FAILED);
+          AppLog.debug(LoggerConstants.TAG_ENROLL_AUTOPAY, LoggerConstants.METHOD_NAME + methodName);
+          iDataManagerCallback.onData(methodName, null, ErrorUtility.getErrorFromThrowable(error));
+          FIGReportUtility.failedTransactionForDataManagersCall(collectionName, FIGReportUtility.RequestType.POST);
+      }
+
+      @SuppressWarnings("unchecked")
+      @Override
+      public <S> void onSuccess(S successObject, String methodName) {
+          AppLog.verbose(LoggerConstants.TAG_ENROLL_AUTOPAY, LoggerConstants.SUCCESS);
+          AppLog.debug(LoggerConstants.TAG_ENROLL_AUTOPAY, LoggerConstants.METHOD_NAME + methodName);
+          FIGReportUtility.endTransactionForDataManagersCall(tId);
+          iDataManagerCallback.onData(methodName, successObject, null);
+      }
+
+      /**
+       ,* Perform service call
+       ,*/
+      public void performOperation() {
+          AppLog.verbose(LoggerConstants.TAG_ENROLL_AUTOPAY, LoggerConstants.PERFORM_OPERATION);
+          if (NetworkUtility.isNetworkAvailable(context)) {
+              AppLog.debug(LoggerConstants.TAG_ENROLL_AUTOPAY, LoggerConstants.REQUEST_JSON + Serialization.objectToJsonObject(requestObject).toString());
+              tId = FIGReportUtility.beginTransactionForDataManagersCall(collectionName, FIGReportUtility.RequestType.POST);
+              nfarmersKinveyClient.saveData(className, requestObject, collectionName, methodName);
+          } else {
+              iDataManagerCallback.onData(methodName, null, ErrorUtility.getNoNetworkError(context));
+          }
+      }
+
+  }
+#+end_src
+
+** Bye bye worthless comments (70 lines)
+
+#+begin_src java
+  package com.farmers.ifarmers.service.datamanager;
+
+  import ...
+    
+  public class EnrollAutopayDataManager<T extends GenericJson> implements WebserviceCallback {
+      private NfarmersKinveyClient nfarmersKinveyClient;
+      private T requestObject;
+      private IDataManagerCallback iDataManagerCallback;
+      private String methodName;
+      private String collectionName;
+      private Context context;
+      private Class<T> className;
+      private String tId;
+
+      public EnrollAutopayDataManager(Context context, String methodName, String collectionName, T requestObject, Class<T> className, IDataManagerCallback iDataManagerCallback) {
+          AppLog.verbose(LoggerConstants.TAG_ENROLL_AUTOPAY, LoggerConstants.CONSTRUCTOR_CALLED);
+          this.context = context;
+          this.methodName = methodName;
+          AppLog.debug(LoggerConstants.TAG_ENROLL_AUTOPAY, LoggerConstants.METHOD_NAME + methodName);
+          this.collectionName = collectionName;
+          AppLog.debug(LoggerConstants.TAG_ENROLL_AUTOPAY, LoggerConstants.COLLECTION_NAME + collectionName);
+          this.requestObject = requestObject;
+          AppLog.debug(LoggerConstants.TAG_ENROLL_AUTOPAY, LoggerConstants.REQUEST_PARAMS + requestObject);
+          this.iDataManagerCallback = iDataManagerCallback;
+          this.className = className;
+          nfarmersKinveyClient = new NfarmersKinveyClient(NFarmersApplication.getContext(), KinveyConfigManager.getInstance().getKinveyConfig().getAppId(), KinveyConfigManager.getInstance().getKinveyConfig().getAppSecret(), KinveyConfigManager.getInstance().getKinveyConfig().getBaseUrl()/*context.getString(R.string.kinvey_base_url)*/, this);
+      }
+
+      @Override
+      public void onFailed(Throwable error, String methodName) {
+          AppLog.verbose(LoggerConstants.TAG_ENROLL_AUTOPAY, LoggerConstants.FAILED);
+          AppLog.debug(LoggerConstants.TAG_ENROLL_AUTOPAY, LoggerConstants.METHOD_NAME + methodName);
+          iDataManagerCallback.onData(methodName, null, ErrorUtility.getErrorFromThrowable(error));
+          FIGReportUtility.failedTransactionForDataManagersCall(collectionName, FIGReportUtility.RequestType.POST);
+      }
+
+      @SuppressWarnings("unchecked")
+      @Override
+      public <S> void onSuccess(S successObject, String methodName) {
+          AppLog.verbose(LoggerConstants.TAG_ENROLL_AUTOPAY, LoggerConstants.SUCCESS);
+          AppLog.debug(LoggerConstants.TAG_ENROLL_AUTOPAY, LoggerConstants.METHOD_NAME + methodName);
+          FIGReportUtility.endTransactionForDataManagersCall(tId);
+          iDataManagerCallback.onData(methodName, successObject, null);
+      }
+
+      public void performOperation() {
+          AppLog.verbose(LoggerConstants.TAG_ENROLL_AUTOPAY, LoggerConstants.PERFORM_OPERATION);
+          if (NetworkUtility.isNetworkAvailable(context)) {
+              AppLog.debug(LoggerConstants.TAG_ENROLL_AUTOPAY, LoggerConstants.REQUEST_JSON + Serialization.objectToJsonObject(requestObject).toString());
+              tId = FIGReportUtility.beginTransactionForDataManagersCall(collectionName, FIGReportUtility.RequestType.POST);
+              nfarmersKinveyClient.saveData(className, requestObject, collectionName, methodName);
+          } else {
+              iDataManagerCallback.onData(methodName, null, ErrorUtility.getNoNetworkError(context));
+          }
+      }
+
+  }
+#+end_src
+
+** No more logs (56 lines)
+#+begin_src java
+  package com.farmers.ifarmers.service.datamanager;
+
+  import android.content.Context;
+
+  import ...
+
+  public class EnrollAutopayDataManager<T extends GenericJson> implements WebserviceCallback {
+      private NfarmersKinveyClient nfarmersKinveyClient;
+      private T requestObject;
+      private IDataManagerCallback iDataManagerCallback;
+      private String methodName;
+      private String collectionName;
+      private Context context;
+      private Class<T> className;
+      private String tId;
+
+      public EnrollAutopayDataManager(Context context, String methodName, String collectionName, T requestObject, Class<T> className, IDataManagerCallback iDataManagerCallback) {
+          this.context = context;
+          this.methodName = methodName;
+          this.collectionName = collectionName;
+          this.requestObject = requestObject;
+          this.iDataManagerCallback = iDataManagerCallback;
+          this.className = className;
+          nfarmersKinveyClient = new NfarmersKinveyClient(NFarmersApplication.getContext(), KinveyConfigManager.getInstance().getKinveyConfig().getAppId(), KinveyConfigManager.getInstance().getKinveyConfig().getAppSecret(), KinveyConfigManager.getInstance().getKinveyConfig().getBaseUrl()/*context.getString(R.string.kinvey_base_url)*/, this);
+      }
+
+      @Override
+      public void onFailed(Throwable error, String methodName) {
+          iDataManagerCallback.onData(methodName, null, ErrorUtility.getErrorFromThrowable(error));
+          FIGReportUtility.failedTransactionForDataManagersCall(collectionName, FIGReportUtility.RequestType.POST);
+      }
+
+      @SuppressWarnings("unchecked")
+      @Override
+      public <S> void onSuccess(S successObject, String methodName) {
+          FIGReportUtility.endTransactionForDataManagersCall(tId);
+          iDataManagerCallback.onData(methodName, successObject, null);
+      }
+
+      public void performOperation() {
+          if (NetworkUtility.isNetworkAvailable(context)) {
+              tId = FIGReportUtility.beginTransactionForDataManagersCall(collectionName, FIGReportUtility.RequestType.POST);
+              nfarmersKinveyClient.saveData(className, requestObject, collectionName, methodName);
+          } else {
+              iDataManagerCallback.onData(methodName, null, ErrorUtility.getNoNetworkError(context));
+          }
+      }
+  }
+#+end_src
+
+** Second half...
+#+begin_src java
+  @Override
+  public void onFailed(Throwable error, String methodName) {
+      iDataManagerCallback.onData(methodName, null, ErrorUtility.getErrorFromThrowable(error));
+      FIGReportUtility.failedTransactionForDataManagersCall(collectionName, FIGReportUtility.RequestType.POST);
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public <S> void onSuccess(S successObject, String methodName) {
+      FIGReportUtility.endTransactionForDataManagersCall(tId);
+      iDataManagerCallback.onData(methodName, successObject, null);
+  }
+
+  public void performOperation() {
+      if (NetworkUtility.isNetworkAvailable(context)) {
+          tId = FIGReportUtility.beginTransactionForDataManagersCall(collectionName, FIGReportUtility.RequestType.POST);
+          nfarmersKinveyClient.saveData(className, requestObject, collectionName, methodName);
+      } else {
+          iDataManagerCallback.onData(methodName, null, ErrorUtility.getNoNetworkError(context));
+      }
+  }
+#+end_src
+
+** -FIG, -NetworkUtility (41 lines)
+#+begin_src java
+  public EnrollAutopayDataManager(String methodName, String collectionName, T requestObject, Class<T> className, IDataManagerCallback iDataManagerCallback) {
+      this.methodName = methodName;
+      this.collectionName = collectionName;
+      this.requestObject = requestObject;
+      this.iDataManagerCallback = iDataManagerCallback;
+      this.className = className;
+      nfarmersKinveyClient = new NfarmersKinveyClient(NFarmersApplication.getContext(), KinveyConfigManager.getInstance().getKinveyConfig().getAppId(), KinveyConfigManager.getInstance().getKinveyConfig().getAppSecret(), KinveyConfigManager.getInstance().getKinveyConfig().getBaseUrl()/*context.getString(R.string.kinvey_base_url)*/, this);
+  }
+
+  @Override
+  public void onFailed(Throwable error, String methodName) {
+      iDataManagerCallback.onData(methodName, null, ErrorUtility.getErrorFromThrowable(error));
+  }
+
+  @Override
+  public <S> void onSuccess(S successObject, String methodName) {
+      iDataManagerCallback.onData(methodName, successObject, null);
+  }
+
+  public void performOperation() {
+      nfarmersKinveyClient.saveData(className, requestObject, collectionName, methodName);
+  }
+#+end_src
+
+** EnrollAutopayDataManager (0 lines)
+
+* The data classes
+The app originally used Google Http Client to serialize/deserialize JSON
+
+** It was written like this...
+#+begin_src java
+  public class EnrollAutomaticPaymentRequestBase extends GenericJson {
+      @Key
+      private String method; // the webservice method name
+
+      @Key
+      private EnrollAutomaticPaymentRequest param; // the request parameters
+      @Key
+      private Response response; //Response
+
+      /**
+       ,* Default constructor
+       ,*/
+      public EnrollAutomaticPaymentRequestBase() {
+          // Do nothing
+      }
+
+      /**
+       ,* To get the Method of Web service
+       ,*
+       ,* @return <code>method</code>
+       ,*/
+
+      public String getMethod() {
+          return method;
+      }
+
+      /**
+       ,* Set the web service Method
+       ,*
+       ,* @param method - Webservice method
+       ,*/
+      public void setMethod(String method) {
+          this.method = method;
+      }
+
+      /**
+       ,* return input patrams
+       ,*
+       ,* @return <code>param</code>
+       ,*/
+      public EnrollAutomaticPaymentRequest getParam() {
+          return param;
+      }
+
+#+end_src
+
+** Converting to GSON
+
+#+begin_src java
+  public class EnrollAutomaticPaymentRequestBase {
+      public String method;
+      public EnrollAutomaticPaymentRequest param;
+      public Response response;
+  }
+#+end_src
+
+** Combine all classes to 1 file
+
+#+begin_src java
+  public class EnrollAutomaticPaymentRequest {
+      public String method;
+      public Param param;
+
+      public static class Param {
+          public String billingAccountNumber;
+          public String userId;
+          public String agentId;
+          public String bankOrCardId;
+          public String paymentTypeCode;
+          public String userType;
+          public String contractAccountNumber;
+          public String paymentMethodRoleReference;
+          public String dueDate;
+          public String antiSpoofingToken;
+          public String requestId;
+      }
+  }
+#+end_src
+
+* A backend example (PolicySummary V4)
+
+ See if you can spot the pattern
+
+** 
+#+begin_src java
+  for (var futureInx in futurePolicyList) {
+
+      if (futurePolicyList.hasOwnProperty(futureInx)) {
+          futurePolVar = futurePolicyList[futureInx];
+          futurePolicyListDateArr.push(futurePolVar.policyEffectiveDate); 
+      }
+  }
+#+end_src
+
+** 
+#+begin_src java
+  for (var futureIndex in futurePolicyList) {
+                    
+      if (futurePolicyList.hasOwnProperty(futureIndex)) {
+                        
+          if (futurePolicyList[futureIndex].policyEffectiveDate  === futurePolicyListDateArr[0]) {
+              futurePolicyList[futureIndex].policyCancellationDate = convertDateStrng(futurePolicyList[futureIndex].policyCancellationDate, req);
+              futurePolicyList[futureIndex].policyEffectiveDate = convertDateStrng(futurePolicyList[futureIndex].policyEffectiveDate, req);
+              futurePolicyList[futureIndex].policyRenewalDate = convertDateStrng(futurePolicyList[futureIndex].policyRenewalDate, req);
+              futurePolicyList[futureIndex].policyInceptionDate = convertDateStrng(futurePolicyList[futureIndex].policyInceptionDate, req);
+              futurePolicyList[futureIndex].isFutureEffPolicy = true;
+              respObj.policyList.push(futurePolicyList[futureIndex]);
+          }
+      }
+  }
+#+end_src
+
+** 
+#+begin_src java
+  for (var j = 0; j < customerSOIList.length; j++) {
+      var customerSOIObj = customerSOIList[j];
+      var newCustomerSOIObj = {};
+                        
+      if (customerSOIObj) {
+          var soiArr = [];
+                            
+          if (soiMap[soiPolicyNo]) {
+              soiArr = soiMap[soiPolicyNo];
+          }
+          newCustomerSOIObj.year = customerSOIObj.vehicleYear;
+          newCustomerSOIObj.vin = customerSOIObj.vehicleVIN;
+          newCustomerSOIObj.model = customerSOIObj.vehicleModel;
+          newCustomerSOIObj.make = customerSOIObj.vehicleMake;
+          soiArr.push(newCustomerSOIObj);
+          soiMap[soiPolicyNo] = soiArr;
+      }
+  }
+
+#+end_src
+
+** 
+
+#+begin_src java
+  for (var polIndex in policySummaryList) {
+                
+      if (polIndex) {
+                    
+          if (agntOfRecArry.indexOf(policySummaryList[polIndex].agentOfRecordId) === -1){
+              agntOfRecArry.push(policySummaryList[polIndex].agentOfRecordId);   
+          }  
+      } 
+  }
+
+#+end_src
+
+** 
+
+#+begin_src java
+  for (var soiIndex = 0; soiIndex < soiObjArr.length; soiIndex++) {
+      var soiObj = soiObjArr[soiIndex];
+
+      if (soiObj) {
+          vehicles.push(soiObj);
+          policyObj.vehicles = vehicles;
+      }
+  }
+#+end_src
+
+** 
+
+#+begin_src java
+  for (var accKey in accountList) {
+                
+      if (accKey) {
+                    
+          if (billingAccountsList.indexOf(accKey) === -1) {
+              billingAccountNumberList.push(accKey);
+          }
+          billingListForSummaryAndAgreement.push(accKey);
+          accountList[accKey].billingSummary = {};
+      }
+  }
+
+#+end_src
+
+** 
+#+begin_src java
+  for (var dynkey in dynamickeys) {
+
+      if (dynamickeys.hasOwnProperty(dynkey)) {
+          dynamicPropertiesArrTemp.push(dynamicPropertiesArr[dynkey]);  
+      }
+  }
+#+end_src
+
+** 
+#+begin_src java
+  for (var policyIndex = 0; policyIndex < policySummaryList.length; policyIndex++) {
+      var policy = policySummaryList[policyIndex];
+        
+      if (policy.policyRoleType) {
+          role = policy.policyRoleType;
+            
+          if (roleList.indexOf(role) !== -1) {
+              filteredPolicyList.push(policy);
+          }
+      }
+  }
+
+#+end_src
+
+** 
+#+begin_src java
+  for (var accountId in accountList) {
+            
+      if (accountList[accountId]) {
+          accountNumberArray.push(accountId);
+          var accObj = accountList[accountId];
+          var policyList = accObj.policyList;
+          var policyArray = [];
+                
+          // skip some code ...
+          delete accObj.policyList;
+          accObj.policies = policyArray;
+          accountArray.push(accObj);
+      }
+  }
+
+#+end_src
+
+** I got tired of copy/pasting...
+   
+** How about...
+#+begin_src java
+  let accountNumberArray = accountList.filter(id => accountList[accountList]);
+  let accountArray = accountNumberArray.map(acct => accountList[accountList]
+          .drop('policyList').set('policyArray', []));
+#+end_src
+
+* Problem: Can I get rid of this code?
+/200,000 of code were written before I joined. Can I just delete remove code?/
+
+#+ATTR_REVEAL: :frag t
+*YES*
+#+ATTR_REVEAL: :frag t
+(usually)
+
+** Techniques to determine if you can delete the code
+- Start with the obvious, superfluous code
+- Does it make a network request or call into an opaque library?
+- Does it persist data on disk?
+- Can you find all the uses of the code?
+
+** If you're still not sure
+- Ask someone more senior
+- Flag it or make the change easily revertable
+- Wait; understand the code better
+- Do it
+
+* How to achieve less code
+Start small
+
+Don't try to reduce 2,000 line file to 200 lines in one go.
+
+- Delete pointless comments
+- Delete unused variables, methods, classes & files
+- Make the code follow your style guildelines
+- Listen to your linter/compiler and eliminate warnings/errors
+
+Iterate by removing the most glaring problems first
+
+** Next level elimination
+- Extract methods from duplicate/similar code
+- Develop and conform to app-specific idioms
+- Use libraries/the platform to reduce custom code
+- Deprecate bad methods and have them throw warnings when used
+
+** For the obsessive
+- Become an expert in the programming language and standard library
+- Re-architect the product
+- Fight adding hacks to make up for bugs. Fix the bug!
+- Push standard components and avoid custom widgets

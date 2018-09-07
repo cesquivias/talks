@@ -1,0 +1,433 @@
+#+OPTIONS: toc:nil num:nil reveal_slide_number:nil reveal_title_slide:nil
+#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
+#+REVEAL_EXTRA_CSS: index.css
+#+TITLE: Express Tutorial
+
+* Setup
+Let's create our own [[http://doineedanumbrella.com/][Do We Need an Umbrella]] web app
+
+Enter zip code and get ☔ or 🌂
+
+** Tech stack
+- Node v7.10.0
+- npm v5.3.0
+- Express.js v4.15.4
+
+** Create project
+#+begin_src shell-script
+  npm init
+  npm install express --save
+#+end_src
+
+* The Big Picture 
+What is a web application? 🤔
+
+** Modus Operandi
+Process an HTTP request and return an HTTP response
+#+ATTR_REVEAL: :frag t
+~HttpRequest -> HttpResponse~
+
+#+ATTR_REVEAL: :frag t
+That looks like a function signature 😮
+We can use all our techniques to compose and refactor functions.
+
+** Anatomy of HTTP request
+- Path :: the location of the resource with any filters as query parameters
+- Headers :: metadata about what kind of formats you accept or extra data you want to give to the server like authentication data or cache information
+- Content :: when uploading data. Only contains the actual relevant data
+
+** Anatomy of HTTP response
+- Status code :: What happened? Like C error codes or Unix process status codes but standardized
+- Headers :: metadata like requests. What format is the data and cache information still useful
+- Content :: Any information the user requested
+
+** Use the parts of HTTP properly
+- More tools available
+- Easier to debug
+- Easier learning curve
+
+** Express.js: 90% good
+- Helps use the different parts of HTTP the right way 👍
+- Simple request/response classes 👍
+- Doesn't have a functional approach to request/response 👎
+  - More prodecural approach where you you modify the arguments 😢
+  - At least it doesn't modify arguments and return a value 😛
+
+* It never rains in Southern California
+Return a simple ~"No umbrella"~ message
+
+#+caption: index.js
+#+begin_src js
+  const express = require('express');
+  const app = express();
+
+  app.get('/umbrella', (req, res) => {
+      // This is the controller
+      res.send('No umbrella!');
+  });
+
+  app.listen(8000, () => console.log('Listening on port 8000'));
+#+end_src
+
+** Key points
+- Simple controller. Keep it that way!
+- You must call end the response
+  - Ended implicitly with ~send()~ or explicitly with ~end()~
+  - When apps get more complicated, be sure to close end response or else...
+  - Use ~finally~ block?
+- Response code 200 used by default
+
+* Improve Express layout
+Apps soon get too big to keep in one file. Split the routing and the controllers into separate files.
+
+- index.js :: main file with routes
+- controllers.js :: You know...
+
+** index.js
+#+begin_src js
+  const express = require('express');
+  const app = express();
+  const {umbrella} = require('controllers.js');
+
+  app.get('/umbrella', umbrella);
+
+  app.listen(8000, () => console.log('Listening on port 8000'));
+#+end_src
+
+** controllers.js
+#+begin_src js
+  exports.umbrella (req, res) => {
+      res.send('No umbrella!');
+  };
+#+end_src
+
+
+* Parameterize
+Accept and use request data
+
+#+caption: controllers.js
+#+begin_src js
+  exports.umbrella (req, res) => {
+      res.send('No umbrella needed at ' + req.params.zip + '!');
+  };
+#+end_src
+
+** Add parameter validation
+#+begin_src js
+  exports.umbrella = (req, res) => {
+      if (!req.params.zip) {
+          res.status(400).end();
+      } else {
+          res.send('No umbrella needed at ' + req.params.zip + '!');
+      }
+  };
+#+end_src
+
+** Middleware to the rescue
+Middleware: do something before or after the controller
+
+Short circuit the flow if the request is invalid.
+
+Add extra headers or modify all requests/responses to make a controller's life easier (e.g., add pre-computed fields to request object, gzip all responses)
+
+** Middleware anatomy
+#+begin_src js
+  let middlewareExample = (req, res, next) => {
+      processRequestForController(req);
+      if (somethingIsWrongWith(req)) {
+          // return an error response without calling controller
+          res.status(400).send('Bad request!');
+      } else {
+          // Call controller
+          next();
+          processResponseForController(res);
+      }
+  }
+
+  // Register with a route
+  app.get('/umbrella', middlewareExample, umbrella);
+  // or register with all controllers
+  app.use(middlewareExample);
+#+end_src
+
+#+reveal: split
+#+caption: middleware.js
+#+begin_src js
+  exports.checkParam = function(param) {
+      return (req, res, next) => {
+          if (req.param[param]) {
+              next();
+          } else {
+              res.status(400).end();
+          }
+      };
+  };
+#+end_src
+
+#+reveal: split
+#+caption: index.js
+#+begin_src js
+  const express = require('express');
+  const app = express();
+  const {umbrella} = require('controllers.js');
+  const {checkParam} = require('middleware');
+
+  app.get('/umbrella', checkParam('zip'), umbrella);
+
+  app.listen(8000, () => console.log('Listening on port 8000'));
+#+end_src
+
+#+reveal: split
+#+caption: controllers.js
+#+begin_src js
+  exports.umbrella (req, res) => {
+      res.send('No umbrella needed in ' + req.params.zip + '!');
+  };
+#+end_src
+
+* Backend Call
+Any non-trivial web app calls other systems (e.g., databases, other services, filesystem)
+
+Let's get weather for a given zip code
+
+** Make HTTP request with Callbacks
+
+#+caption: controllers.js
+#+begin_src js
+  // Using node's built-in http library... for now
+  const http = require('http');
+
+  exports.umbrella = (req, res) => {
+      http.get(weatherURL(req.param.zip), (weatherRes) => {
+          if (weatherRes.statusCode !== 200) {
+              res.status(500).end();
+              return;
+          }
+
+          res.send(!!weatherRes.rain ? '☔' : '🌂');
+      });
+  };
+#+end_src
+
+** Making serial HTTP requests
+#+begin_src js
+  // Using node's built-in http library... for now
+  const http = require('http');
+
+  exports.umbrella = (req, res) => {
+      http.get(userInfoURL(), (userRes) => {
+          if (userRes.statusCode !== 200) {
+              res.status(500).end();
+              return;
+          }
+
+          http.get(weatherURL(userRes.user.zip), (weatherRes) => {
+              if (weatherRes.statusCode !== 200) {
+                  res.status(500).end();
+                  return;
+              }
+
+              res.send(!!weatherRes.rain ? '☔' : '🌂');
+          });
+
+      });
+  };
+
+#+end_src
+
+** Key Points
+- The connection will wait (hang) while you make other network calls
+- Serial calls are nested inside callbacks (🛣️ to callback hell)
+- Parallel calls would go alongside eachother in the controller body
+  - Manual synchronization of results
+
+* Promise
+Simplify async code with Promise API
+
+** Promise Basics
+- Async operations (e.g., network calls, filesystem operations) return a Promise object
+- Have well-defined lifecycles and have solutions to race conditions and synchronizing multiple promises.
+
+** HTTP requests with Promise
+#+begin_src js
+  var rp = require('request-promise');
+
+  exports.umbrella = (req, res) => {
+      rp(weatherURL(req.param.zip))
+          .then((weatherRes) => {
+              res.send(!!weatherRes.rain ? '☔' : '🌂');
+          })
+          .catch((err) => {
+              res.status(500).end();
+          });
+  };
+#+end_src
+
+** Aysnc chaining with promises
+#+begin_src js
+  var rp = require('request-promise');
+
+  exports.umbrella = (req, res) => {
+      let onErr = (err) => res.status(500).end();
+      rp(userInfoURL())
+          .then((userRes) => rp(weatherURL(req.param.zip)),
+                onErr)
+          .then((weatherRes) => {
+              res.send(!!weatherRes.rain ? '☔' : '🌂');
+          }, onErr)
+  };
+
+#+end_src
+
+** Synchronize independent async work
+#+begin_src js
+  var rp = require('request-promise');
+
+  exports.umbrella = (req, res) => {
+      Promise.all([rp(weatherURL(req.param.zip)),
+                   rp(localEventsURL(req.param.zip))])
+          .then(responses => {
+              let [weather, events] = responses;
+              res.json({
+                  'umbrella?': !!weather.rain ? '☔' : '🌂',
+                  'events': events.mostRecent,
+              });
+          })
+          .catch(err => {
+              res.status(500).end();
+          });
+  };
+
+
+#+end_src
+
+* Accept Type flexibility
+HTTP can return different formats for the same data on the same URL, yet most sites create a separate endpoint with separate controller 🤔
+
+Make controllers and middleware do this for you (essentially) for free
+
+** But express.js ...
+Express wants you to write response directly to connection (side effect).
+
+This means middleware cannot alter the response since it's already been sent down the wire. Either we manually handle response changes on every controller or change how Express writes the response
+
+** Changing Express.js response handling
+
+We'll create an interface on top of Express.
+
+#+begin_quote
+All problems in computer science can be solved by another level of indirection
+
+=- David Wheeler=
+#+end_quote
+
+** A controller to serialize data
+#+begin_src js
+  const edn = require('jsedn');
+  const jsonxml = require('jsontoxml');
+
+  function serializer(controller) {
+      return (req, res, next) => {
+          const data = controller(req);
+          switch (req.accepts(['application/edn', 'json', 'xml'])) {
+          case 'application/edn': // Lisp s-expressions
+              res.type('application/edn');
+              res.send(edn.encode(data));
+              break;
+          case 'xml':
+              res.type('application/xml');
+              res.send(jsonxml(data));
+              break;
+          case 'json':
+          default:
+              res.json(data);
+              break;
+          }
+      };
+  }
+
+#+end_src
+
+** Make a version for async
+#+begin_src js
+  function serializerAsync(controller) {
+      return (req, res, next) => {
+          controller(req, (data, status) => {
+              switch (req.accepts(['application/edn', 'json', 'xml'])) {
+              case 'application/edn': // Lisp s-expressions
+                  res.type('application/edn');
+                  res.send(edn.encode(data));
+                  break;
+              case 'xml':
+                  res.type('application/xml');
+                  res.send(jsonxml(data));
+                  break;
+              case 'json':
+              default:
+                  res.json(data);
+                  break;
+              }
+          });
+      };
+  }
+
+#+end_src
+
+** Create "controllers" to return a JS object
+#+begin_src js
+  app.get('/', serializerAsync(umbrella));
+
+  exports.umbrella = (req, next) => {
+      let onErr = (err) => next(null, 500);
+      rp(userInfoURL())
+          .then((userRes) => rp(weatherURL(req.param.zip)),
+                onErr)
+          .then((weatherRes) => {
+              next(!!weatherRes.rain ? '☔' : '🌂');
+          }, onErr)
+  };
+#+end_src
+
+* Integrating changes into Express
+Javascript is a very dynamic language. We can extend nearly any object and make our changes first class citizens.
+
+** Monkey patching: The poor man's extension
+You can add properties to any (unclosed) Javascript object.
+
+#+begin_src js
+  const express = require('express');
+
+  const app = express();
+
+  app.functionalGet = function(path, controller, ...wrappers) {
+      app.get(path, wrappers.reduce((w, i) => w(i), controller));
+  };
+
+  app.convert('/', umbrella);
+#+end_src
+
+** Extending prototypes
+Use prototypical extension to include our functionality.
+
+(Not sure if this is possible with Express)
+
+* Building on our foundation
+Returning an object gives allows us to use middleware to modify responses in one location but for all endpoints.
+
+** Javascript object manipulation
+Use libraries like [[https://stedolan.github.io/jq/manual/][jq]] to manipulate SOA responses.
+
+#+begin_src js
+
+  // Grab the first element of an array
+  '.[0]'
+
+  // Collect all payment methods
+  '[.[] | {method: .policy.billing.PaymentMethod}]'
+#+end_src
+
+** Chain functionality
+- Use [[https://www.npmjs.com/package/camelcase][camelcase]] library to standardize JSON keys
+- Generate ~statusTransaction~ element for all endpoints
+- Choose appropriate status code based on status transaction value
+

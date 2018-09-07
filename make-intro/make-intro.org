@@ -1,0 +1,376 @@
+#+OPTIONS: toc:nil num:nil reveal_slide_number:nil
+#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
+#+REVEAL_EXTRA_CSS: make.css
+* Intro to GNU Make
+How to use it for things other than building C/C++ applications
+
+* What is GNU Make?
+** A build system
+A reproducible process to generate your projects output files from its source files.
+#+ATTR_REVEAL: :frag t
+- Program binary
+- Documentation
+- Test results
+#+ATTR_REVEAL: :frag t
+- Maybe some extra actions like upload to a server
+** The original build system (Make)
+Created and in constant use since 1976
+
+
+* The driving principles of Make
+ - Create _one_ output file from 0+ input files
+#+ATTR_REVEAL: :frag t
+ - Do the minimal amount of work necessary to generate output file
+#+ATTR_REVEAL: :frag t
+ - Automatically chain dependencies together
+** Make is file based (vs task based)
+The goal of Make is to make files. Make determines work base on the
+timestamps that it assumes you're making
+#+ATTR_REVEAL: :frag t
+ - Most modern build systems are task based (e.g., Gradle, Ant, Scons).
+ - Though task based systems are more powerful but are more complex.
+ - File based build tools are easier to start and provide that 80% of results
+   for 20% of the work.
+
+
+* Hello, Make!
+** Hello World without Make
+#+begin_src c
+  #include <stdio.h>
+
+  int main() {
+      printf("Hello, world!\n");
+      return 0;
+  }
+#+end_src
+#+ATTR_REVEAL: :frag t
+#+begin_src shell
+  $ gcc -o hello hello.c
+#+end_src
+#+ATTR_REVEAL: :frag t
+#+begin_src shell
+  $ ./hello
+  Hello, world!
+#+end_src
+
+** It gets worse
+For any non-trivial program, running ~gcc~ directly can get complicated quickly
+#+ATTR_REVEAL: :frag t
+Google's instructions on how to compile their zlib compression library
+#+begin_src makefile
+  gcc src/zopfli/blocksplitter.c src/zopfli/cache.c src/zopfli/deflate.c src/zopfli/gzip_container.c src/zopfli/hash.c src/zopfli/katajainen.c src/zopfli/lz77.c src/zopfli/squeeze.c src/zopfli/tree.c src/zopfli/util.c src/zopfli/zlib_container.c src/zopfli/zopfli_bin.c src/zopfli/zopfli_lib.c -O2 -W -Wall -Wextra -Wno-unused-function -ansi -pedantic -lm -o zopfli
+#+end_src
+
+#+ATTR_REVEAL: :frag t
+Unless you're on Linux. Then just use their Makefile
+
+* Hello With Make
+#+begin_src makefile
+  hello: hello.c
+	  gcc -o hello hello.c
+#+end_src
+
+#+ATTR_REVEAL: :frag t
+#+begin_src shell
+  $ make hello
+  gcc -o hello hello.c
+#+end_src
+
+#+ATTR_REVEAL: :frag t
+#+begin_src shell
+  $ ./hello
+  Hello, world!
+#+end_src
+
+** Some Make vocabulary
+This is a rule
+#+begin_src makefile
+  target: prerequisite ...
+	  recipe...
+#+end_src
+
+* Hello With better Make
+
+** Use command variables
+#+begin_src makefile
+  hello: hello.c
+	  $(CC) -o hello hello.c
+#+end_src
+
+#+ATTR_REVEAL: :frag t
+#+begin_src shell
+   $ make hello
+   cc -o hello hello.c
+#+end_src
+
+#+ATTR_REVEAL: :frag t
+#+begin_src shell
+  $ make hello CC=gcc
+  gcc -o hello hello.c
+#+end_src
+
+** Use automatic variables
+#+begin_src makefile
+  hello: hello.c
+	  $(CC) -o $@ $<
+#+end_src
+
+#+ATTR_REVEAL: :frag t
+#+begin_src shell
+  $ make hello
+  cc -o hello hello.c
+#+end_src
+
+* Hello with no Make(file)
+ - Make comes with several built-in rules
+#+ATTR_REVEAL: :frag t
+ - Most are for C/C++ development
+#+ATTR_REVEAL: :frag t
+ - Don't write them if you don't need to
+#+ATTR_REVEAL: :frag t
+#+begin_src shell
+  $ make hello
+  cc     hello.c   -o hello
+#+end_src
+
+
+* Make good practices
+** Provide a clean target
+#+begin_src makefile
+  clean:
+	  $(RM) hello
+
+  .PHONY clean
+#+end_src
+
+PHONY targets are always run and aren't expected to produce target-named files
+
+** Provide an all target
+Typically, ~all~ builds all your final binaries. Documentation and tests
+shouldn't be included.
+
+The ~all~ target should be the first rule because Make runs the first rule if
+no target is provided.
+
+#+begin_src makefile
+  all: hello goodbye
+
+  .PHONY: all
+#+end_src
+
+
+** Put generated files in a separate directory
+#+begin_src makefile
+  BUILD ?= build
+  SRC ?= .
+
+  $(BUILD)/hello: $(SRC)/hello.c | $(BUILD)
+	  $(CC) -o $@ $<
+
+  $(BUILD):
+	  mkdir -p $@
+
+  clean:
+	  $(RM) -r $(BUILD)
+
+  .PHONY: clean
+#+end_src
+
+
+* Make Screenshots
+How to make screenshots for PR's and defects that are not enormous 
+and take up the whole screen.
+#+ATTR_REVEAL: :frag t
+Automate resizing with one (or two) simple Make rules.
+
+** Resize using ImageMagick
+ImageMagick: a powerful open source image library & command line tools
+
+To shrink an image by 40%
+#+begin_src makefile
+  smaller-sample.png: sample.png
+	  convert $< -resize 40% $@
+#+end_src
+
+#+ATTR_REVEAL: :frag t
+#+begin_src shell
+  $ make smaller-sample.png
+  convert sample.png -resize 40% smaller-sample.png
+#+end_src
+
+** Add best practices
+#+begin_src makefile
+  BUILD ?= build
+  SRC ?= src
+
+  all: $(BUILD)/sample-image
+
+  $(BUILD)/sample-image: $(SRC)/sample-image | $(BUILD)
+	  convert "$@" -resize 40% "$<"
+
+  $(BUILD):
+	  mkdir -p $@
+
+  clean:
+	  $(RM) -r $(BUILD)
+
+  .PHONY: all clean
+#+end_src
+
+** Resize any image with a pattern
+Use the ~%~ wildcard to match more than one file
+
+#+begin_src makefile
+  $(BUILD)/%: $(SRC)/% | $(BUILD)
+	    convert "$@" -resize 40% "$<"
+#+end_src
+
+#+ATTR_REVEAL: :frag t
+#+begin_src shell
+  $ make build/device-2017-03-27-093114.png
+  convert "src/device-2017-03-27-093114.png" -resize 40% "build/device-2017-03-27-093114.png"
+#+end_src
+
+** Resize all images
+Dynamically update ~all~ by generating the list of prerequisites from current
+source files with ~pathsubst~
+
+#+begin_src makefile
+  images = $(patsubst $(SRC)/%, $(BUILD)/%, $(wildcard $(SRC)/*))
+
+  all: $(images)
+#+end_src
+
+#+ATTR_REVEAL: :frag t
+#+begin_src shell
+  $ make
+  convert "src/device-2017-03-30-093819.png" -resize 40% "build/device-2017-03-30-093819.png"
+  convert "src/device-2017-03-27-093114.png" -resize 40% "build/device-2017-03-27-093114.png"
+  convert "src/device-2017-03-21-180628.png" -resize 40% "build/device-2017-03-21-180628.png"
+  convert "src/device-2017-03-24-093711.png" -resize 40% "build/device-2017-03-24-093711.png"
+#+end_src
+
+** Generate only PNGs
+Android creates PNG screenshots (👍🏽) but Mac's Grab app creates TIFF files (👎🏽)
+
+ImageMagick can help us convert TIFF files to PNG
+
+#+begin_src makefile
+  $(SRC)/%.png: $(SRC)/%.tiff
+	  convert "$@" "$<"
+#+end_src
+
+#+ATTR_REVEAL: :frag t
+#+begin_src makefile
+  pngs = $(patsubst $(SRC)/%, $(BUILD)/%, $(wildcard $(SRC)/*.png))
+  pngs += $(patsubst $(SRC)/%.tiff, $(BUILD)/%.png, $(wildcard $(SRC)/*.tiff))
+
+  all: $(pngs)
+#+end_src
+
+#+ATTR_REVEAL: :frag t
+Make knows to convert a TIFF file to PNG first and then resize it by 40%. Make even knows that first PNG file was an intermediate file and automatically deletes it for us!
+
+#+ATTR_REVEAL: :frag t
+#+begin_src shell
+  $ make
+  convert "src/screen.tiff" "src/screen.png"
+  convert "src/screen.png" -resize 40% "build/screen.png"
+  rm src/screen.png
+#+end_src
+
+** Final Makefile
+#+begin_src makefile
+  BUILD ?= build
+  SRC ?= src
+
+  pngs = $(patsubst $(SRC)/%, $(BUILD)/%, $(wildcard $(SRC)/*.png))
+  pngs += $(patsubst $(SRC)/%.tiff, $(BUILD)/%.png, $(wildcard $(SRC)/*.tiff))
+
+  all: $(pngs)
+
+  clean:
+	  $(RM) -r $(BUILD)
+
+  $(BUILD)/%: $(SRC)/% | $(BUILD)
+	  convert "$<" -resize 40% "$@"
+
+  src/%.png: src/%.tiff
+	  convert "$<" "$@"
+
+  $(BUILD):
+	  mkdir $@
+
+  .PHONY: all clean
+
+#+end_src
+
+
+* Make for config file management
+
+** Problem
+I have config files and I want them to be installed and up to date on all my
+machines
+#+ATTR_REVEAL: :frag t
+i.e., I want to create some files based off of some other files
+
+** Install config files into home directory
+#+begin_src makefile
+  configs = $(patsubst configs/%, ~/.%, $(wildcard configs/*))
+
+  all: $(configs)
+
+  ~/.%: configs/%
+	  cp "$<" "$@"
+#+end_src
+
+** Symbolic links
+#+begin_src makefile
+  ~/.%: configs/%
+	  ln -s "$<" "$@"
+#+end_src
+
+** Generate SSH key
+#+begin_src makefile
+  ~/.ssh/id_rsa: | ~/.ssh
+	  ssh-keygen -t rsa -C "$(USER)@$(HOSTNAME)"
+
+  ~/.ssh:
+	  mkdir -p $@
+	  chmod 0600 $@
+#+end_src
+
+** Install custom scripts
+#+begin_src makefile
+  scripts = $(patsubst scripts/%, ~/.bin/%, $(wildcard scripts/%))
+
+  all: $(configs) $(scripts)
+
+  ~/.bin/%: scripts/% | ~/.bin
+	  ln -s "$<" "$@"
+#+end_src
+
+** Install OS-specific files
+Some files only make sense on Mac, Linux or Cygwin
+#+begin_src makefile
+  configs += $(patsubst $(UNAME)/configs/%, ~/.%, $(wildcard $(UNAME)/configs/*))
+
+  scripts += $(patsubst $(UNAME)/scripts/%, ~/.%, $(wildcard $(UNAME)/scripts/*))
+#+end_src
+
+
+* Takeaways
+#+ATTR_REVEAL: :frag t
+- The right tool for the right job
+#+ATTR_REVEAL: :frag t
+- Learn new languages. Even mini ones
+#+ATTR_REVEAL: :frag t
+- When in Rome, do as the Romans
+#+ATTR_REVEAL: :frag t
+- Makefiles are still code. Treat them as such
+
+* Resources
+- Managing Projects with GNU Make
+  http://www.oreilly.com/openbook/make3/book/index.csp
+- GNU Make Manual
+  https://www.gnu.org/software/make/manual/

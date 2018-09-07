@@ -1,0 +1,276 @@
+#+OPTIONS: toc:nil num:nil reveal_slide_number:nil
+#+REVEAL_ROOT: http://cdn.jsdelivr.net/reveal.js/3.0.0/
+#+REVEAL_EXTRA_CSS: xml.css
+* Parsing and querying XML
+Getting the info you want as quickly and effectively as possible
+
+* What is XML?
+eXtensible Markup Language
+
+** A sample XML document
+#+begin_src nxml
+  <?xml version="1.0" encoding="utf-8"?>
+  <root>
+      <element attr="value">
+          <sub>
+              Elements can contain text.
+          </sub>
+      </element>
+      <element />
+  </root>
+#+end_src
+
+** Takeaways
+XML is...
+- A document made of elements
+- Elements are nested within each other
+- The nesting is what makes parsing XML difficult
+- It's really a serialized tree
+
+
+* A word on "parsing"
+Parsing has two parts
+1. Recognizing the syntax (lexing)
+ * All libraries work equally well (mostly)
+2. What to do with recognized elements (parsing)
+ * This is where libraries differ
+ * You choose your tradeoffs
+
+* A case study
+When upgrading to Android SDK 19, our lint errors spiked by 100%
+[[file:img/lint-warnings.png]]
+** Why?
+A common layout attribute is now obsolete and should be deleted 😮
+#+ATTR_REVEAL: :frag t
+The lint warnings tell us which lines can be deleted 😄
+#+ATTR_REVEAL: :frag t
+Android Studio doesn't delete them for us 🙄
+** What do we need delete?
+
+#+OPTIONS: ^:nil
+#+CAPTION: activity_login.xml
+[[file:img/sample-view.png]]
+** Our lint results XML
+#+begin_src nxml
+<?xml version="1.0" encoding="UTF-8"?>
+  <problems>
+    <problem>
+      <file>file://$PROJECT_DIR$/nFarmers/src/main/res/layout/activity_login.xml</file>
+      <line>87</line>
+      <module>nFarmers</module>
+      <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/nFarmers/src/main/res/layout/activity_login.xml" />
+      <problem_class severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Using left/right instead of start/end attributes</problem_class>
+      <hints />
+      <description>&lt;html&gt;Redundant attribute &lt;code&gt;layout_alignRight&lt;/code&gt;; already defining &lt;code&gt;layout_alignEnd&lt;/code&gt; with &lt;code&gt;targetSdkVersion&lt;/code&gt; 25&lt;/html&gt;</description>
+    </problem>
+    <problem>
+      <file>file://$PROJECT_DIR$/nFarmers/src/main/res/layout/activity_login.xml</file>
+      <line>90</line>
+      <module>nFarmers</module>
+      <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/nFarmers/src/main/res/layout/activity_login.xml" />
+      <problem_class severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Using left/right instead of start/end attributes</problem_class>
+      <hints />
+      <description>&lt;html&gt;Redundant attribute &lt;code&gt;layout_marginRight&lt;/code&gt;; already defining &lt;code&gt;layout_marginEnd&lt;/code&gt; with &lt;code&gt;targetSdkVersion&lt;/code&gt; 25&lt;/html&gt;</description>
+    </problem>
+
+    ...
+  </problems>
+#+end_src
+
+** Note
+Although the layout file is in XML, we can treat it as simple text because we can delete entire lines.
+
+It pays to have your source code formatted well and consistent :-)
+
+
+* How to delete lines?
+The tricky part:
+
+- Multiple lines may need to be deleted in the same file
+- Deleting one line alters the line numbers of all the other warnings
+
+** Our Unix tool: (GNU) sed
+~sed~ has a syntax to delete multiple lines from a file at once
+
+#+begin_src shell-script
+  sed -i -e '87d;90d' <file>
+#+end_src
+
+** Our goal
+Convert our XML lint results into a shell script of ~sed~ commands
+#+CAPTION: Profit!
+[[file:img/flow.png]]
+
+** Algorithm
+#+begin_src python
+  for problem_element in xml_document:
+      file_lines[filename] += line
+
+  for filename, lines in file_lines:
+      print "sed -i -e '${lines}' ${filename}"
+#+end_src
+
+* Simple text parsing
+#+begin_quote
+When in doubt, use brute force.
+ -- Ken Thompson
+#+end_quote
+
+** Invariants
+- The lint output is consistent
+- Every element with data only takes up one line with no child elements
+- ~<problem_class>~ will contain the same value for all the warnings we care about
+
+** Python script
+
+** Big caveats
+- Only use if you have the XML beforehand
+- Only try if you're 99% sure you can get it work.
+#+ATTR_REVEAL: :frag t
+- If you're not 100% sure you're 99% sure, SKIP!
+
+** Takeaways
+- Use only on *very* simple files you can test against
+- Utilizes the tools you already know
+- Ditch quickly if it gets too complicated. The DOM is not that hard
+
+
+* The DOM model
+It's a tree. Treat it as such
+
+** What is the DOM
+- Document Object Model
+- Parses XML into an in-memory tree of the entire document
+- A standardized API you can use across multiple languages (e.g., Java, Python, Javascript...)
+- Methods to find elements/attributes in several ways
+- Allows tree manipulation
+
+** +Javascript+ Python script
+
+** Caveats
+- Reading your entire tree into memory takes more memory
+- The API is verbose and a lowest common denominator interface
+- DOM manipulation is tedious
+
+** Takeaways
+- Simplest way to parse XML
+- Leads to very procedural (normal) code
+- Unless you have gigabytes of XML, don't worry about memory consumption
+
+
+* SAX Parsing
+If computer resources are more expensive than developer resources...
+
+** What is SAX?
+- Simple API for XML
+- Another standard like DOM but this one is "event based"
+- Your callbacks are called when you enter/exit elements or text is found
+- A very small peak into the document
+- Much smaller memory footprint
+
+** ContentHandler
+#+begin_src python
+  class LintHandler(ContentHandler):
+      def start_tag(self, tag, attrs):
+          # called when you enter an element
+
+      def end_tag(self, tag):
+          # called when you exit
+
+      def characters(self, text):
+          # called some text is found, (but not necessarily all of it)
+#+end_src
+
+** Python script
+
+** Caveats
+- Creates much more complicated scripts
+- Need to maintain a lot more state because you don't get a hollistic view of the document
+- Text that looks like one continuous string may not get passed together in ~characters~ callback
+
+** Takeaways
+- Leads to very ugly (stateful) code
+- Mostly useful for *very* large XML documents
+- Can be useful when gathering information from very distant parts in the document when element names and attributes are useless
+
+
+* XSLT
+If you have 100 hours to kill
+
+** What is XSLT?
+- eXtended Stylesheet Language Transformation
+- A whole separate language written in XML!
+- Takes in an XML file and outputs any text you want (more XML, plain text, Java code...)
+- Turing complete so you can do anything
+- Very functional language (e.g., unmodifiable variables, recursion)
+- Two major versions: 1.0 and 2.0
+- XPath syntax used to select elements or attributes
+
+** Sample XML
+#+begin_src nxml
+  <?xml version="1.0" encoding="utf-8"?>
+  <greeting>
+      Hello, world!
+  </greeting>
+    
+#+end_src
+
+** Sample XSLT program
+#+begin_src nxml
+  <?xml version="1.0" encoding="utf-8"?>
+  <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0">
+      <xsl:output method="html" />
+
+      <xsl:template match="/">
+          <html>
+              <body>
+                  <h1>
+                      <xsl:value-of select="greeting" />
+                  </h1>
+              </body>
+          </html>
+      </xsl:template>
+  </xsl:stylesheet>
+#+end_src
+
+** Basic idea
+- The XML document is traversed depth-first. Basically, the way it's written as text.
+- ~<template>~ elements define what gets outputed
+- ~match~ attributes are used to determine if a ~<template>~ should be applied
+- Several "functions" convert or get information from elements/attributes (e.g., ~<apply-templates>~, ~<value-of>~)
+
+** XSL script
+
+** Caveats
+- It's two whole new langauge to learn (XSL & XPath)
+- It's probably different from any other language you know
+- XSLT processors are not very common and most only support 1.0 or 2.0
+- Feels enterprise-y
+
+** Takeaways
+- If you're using XSLT, you've drunk the XML kool-aid
+- Writing in a tree-manipulating DSL (domain specific language) can be very powerful
+  - Too bad the syntax sucks
+- Steep learning curve. Only learn if
+  - You'll be spending a lot of time in XML
+  - Edification
+
+
+* The big picture
+XML documents are just encoded trees where the nodes contain metadata 
+
+XML is a superset of JSON. Any ideas (tools?) here can apply to working with JSON or any other heirarchical data like code
+
+
+* Other XML tools
+- [[https://www.crummy.com/software/BeautifulSoup/][BeautifulSoup]] (DOM on steroids) - Python & Ruby?
+- [[https://www.w3.org/TR/selectors-api/][W3C Selector API]] (CSS selector syntax) - JavaScript, 3rd party libraries
+
+
+* Resources
+- DOM
+  https://developer.mozilla.org/en-US/docs/Web/API/Document_Object_Model
+- SAX
+  https://wiki.python.org/moin/Sax
+- XSLT
+  http://shop.oreilly.com/product/9780596527211.do

@@ -1,0 +1,343 @@
+#!/usr/bin/env python3
+
+import operator
+import re
+from numbers import Number
+
+class Empty(list):
+    def __str__(self):
+        return '()'
+
+    def eval(self, env):
+        return self
+
+EMPTY = Empty()
+
+class Cons:
+    def __init__(self, car, cdr):
+        self.car = car
+        self.cdr = cdr
+
+    def __repr__(self):
+        return '({}'.format(self.tail_str())
+
+    def tail_str(self):
+        if self.cdr is EMPTY:
+            return '{})'.format(self.car)
+        elif isinstance(self.cdr, List) or isinstance(self.cdr, Cons):
+            return '{} {}'.format(self.car, self.cdr.tail_str())
+        else:
+            return '{} . {})'.format(self.car, self.cdr)
+
+
+class Num(int):
+    def eval(self, env):
+        return self
+
+
+class Symbol:
+    def __init__(self, name):
+        self.name = name
+        
+    def __eq__(self, other):
+        return isinstance(other, Symbol) and self.name == other.name
+
+    def __repr__(self):
+        return self.name
+
+    def eval(self, env):
+        return env[self.name]
+
+
+class Boolean(int):
+    def __repr__(self):
+        return '#t' if self else '#f'
+
+    def eval(self, env):
+        return self
+
+TRUE = Boolean(True)
+FALSE = Boolean(False)
+
+class List(list):
+    def __repr__(self):
+        return '({})'.format(' '.join(str(f) for f in self))
+
+    def convert_special_forms(self):
+        if not self:
+            return EMPTY
+        if isinstance(self[0], Symbol):
+            if self[0].name == 'define':
+                return Define(self[1].name, self[2])
+            elif self[0].name == 'lambda':
+                return Lambda(self[1], self[2:])
+            elif self[0].name == 'if':
+                return If(*self[1:])
+            elif self[0].name == 'while':
+                return While(self[1], self[2:])
+            elif self[0].name == 'quote':
+                return Quote(self[1])
+            elif self[0].name == 'set!':
+                return SetBang(self[1].name, self[2])
+            elif self[0].name == 'or':
+                return Or(self[1:])
+            elif self[0].name == 'and':
+                return And(self[1:])
+            elif self[0].name == 'load':
+                return Load(self[1])
+        return self
+
+    def tail_str(self):
+        return '{})'.format(' '.join(str(f) for f in self))
+
+    def eval(self, env):
+        fn = self[0].eval(env)
+        return self[0].eval(env)(*(arg.eval(env) for arg in self[1:]))
+
+
+class String(str):
+    def eval(self, env):
+        return self
+
+
+class Env(dict):
+    def __init__(self, parent):
+        self.parent = parent
+
+    def __missing__(self, key):
+        if self.parent:
+            return self.parent[key]
+        else:
+            raise KeyError(key)
+
+
+class Define:
+    def __init__(self, name, value_form):
+        self.name = name
+        self.value_form = value_form
+
+    def eval(self, env):
+        env[self.name] = self.value_form.eval(env)
+
+
+class Lambda:
+    def __init__(self, params, body):
+        self.params = params
+        self.body = body
+
+    def eval(self, env):
+        def call(*args):
+            new_env = Env(env)
+            new_env.update(dict(zip((param.name for param in self.params),
+                                    args)))
+            output = None
+            for form in self.body:
+                output = form.eval(new_env)
+            return output
+
+        return call
+
+
+class If:
+    def __init__(self, test, then, _else):
+        self.test = test
+        self.then = then
+        self._else = _else
+
+    def eval(self, env):
+        res = self.test.eval(env)
+        if res is FALSE or res == False:
+            return self._else.eval(env)
+        else:
+            return self.then.eval(env)
+
+
+class While:
+    def __init__(self, test, body):
+        self.test = test
+        self.body = body
+
+    def eval(self, env):
+        result = FALSE
+        while self.test.eval(env):
+            for form in self.body:
+                result = form.eval(env)
+        return result
+
+
+class Or:
+    def __init__(self, tests):
+        self.tests = tests
+
+    def eval(self, env):
+        for test in self.tests:
+            result = test.eval(env)
+            if result != FALSE:
+                return result
+        return FALSE
+
+
+class And:
+    def __init__(self, tests):
+        self.tests = tests
+
+    def eval(self, env):
+        for test in self.tests:
+            result = test.eval(env)
+            if result == FALSE:
+                return FALSE
+        return result
+
+
+class Quote:
+    def __init__(self, val):
+        self.val = val
+
+    def __str__(self):
+        return "'{}".format(self.val)
+
+    def eval(self, env):
+        return self.val
+
+
+class SetBang:
+    def __init__(self, name, value_form):
+        self.name = name
+        self.value_form = value_form
+
+    def eval(self, env):
+        self.set_bang(env, self.value_form.eval(env))
+
+    def set_bang(self, env, val):
+        if env is None:
+            raise ValueError('No variable found: {}'.format(self.name))
+        if self.name in env:
+            env[self.name] = val
+        else:
+            self.set_bang(env.parent, val)
+
+
+class Load:
+    def __init__(self, filename):
+        self.filename = filename
+
+    def eval(self, env):
+        return load(os.path.join(working_dir, self.filename), env)
+
+
+def peek(f, size=1):
+    pos = f.tell()
+    c = f.read(size)
+    f.seek(pos)
+    return c
+
+def is_separator(c):
+    return c.isspace() or c in '()'
+
+def read(f, depth=0):
+    forms = List()
+    c = peek(f)
+    while c:
+        if c == ';':
+            f.readline()
+        elif c == '#':
+            forms.append(read_boolean(f))
+        elif c.isspace():
+            f.read(1)
+        elif c == '(':
+            f.read(1)
+            forms.append(read(f, depth + 1))
+        elif c == ')':
+            if depth >= 0:
+                f.read(1)
+                break
+            else:
+                raise Exception('Unbalanced paretheses')
+        elif c == '"':
+            forms.append(read_string(f))
+        else:
+            forms.append(read_number_or_symbol(f))
+        c = peek(f)
+    return forms.convert_special_forms()
+
+def read_string(f):
+    f.read(1)
+    s = ''
+    c = f.read(1)
+    while c != '"':
+        if c == '\\':
+            c = f.read(1)
+            if c == 'n':
+                s += '\n'
+            elif c == '\\':
+                s += '\\'
+        else:
+            s += c
+        c = f.read(1)
+    return String(s)
+
+def read_boolean(f):
+    f.read(1)
+    c = peek(f)
+    if c == 't':
+        f.read(1)
+        return TRUE
+    elif c == 'f':
+        f.read(1)
+        return FALSE
+    else:
+        raise Exception('Unknown form after #: {}'.format(c))
+    
+def read_number_or_symbol(f):
+    word = f.read(1)
+    is_num = word.isdigit()
+    while not is_separator(peek(f)):
+        c = f.read(1)
+        is_num = is_num and c.isdigit()
+        word += c
+    return Num(word) if is_num else Symbol(word)
+
+def to_iter(lst):
+    list_iter = iter(lst)
+    def _iter():
+        try:
+            return next(list_iter)
+        except StopIteration:
+            return EMPTY
+    return _iter
+
+def lisp_eval(forms, env):
+    if not forms:
+        return
+    for form in forms:
+        try:
+            output = form.eval(env)
+        except KeyError as e:
+            print('Cannot find variable {}'.format(e.args[0]))
+    return output
+
+def make_env():
+    env = Env(None)
+    env['println'] = print
+    env['print'] = lambda x: print(x, end='')
+    env['+'] = operator.add
+    env['-'] = operator.sub
+    env['>'] = operator.gt
+    env['<'] = operator.lt
+    env['eq?'] = operator.eq
+    env['re-find'] = lambda r, text: to_iter(String(s) for s in re.findall(str(r), str(text)))
+    env['file->string'] = lambda filename: String(open(filename).read())
+    return Env(env)
+
+def load(filename, env):
+    with open(filename, 'r', buffering=20) as f:
+        return lisp_eval(read(f), env)
+
+if __name__ == '__main__':
+    import sys
+    import os
+    import os.path
+    working_dir = os.path.dirname(sys.argv[1])
+    output = load(sys.argv[1], make_env())
+    if output is not None:
+        print(output)
